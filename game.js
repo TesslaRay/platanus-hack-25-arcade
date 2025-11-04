@@ -100,6 +100,7 @@ class LS20Scene extends Phaser.Scene {
     this.movesLeft = 22;
     this.canMove = true;
     this.keyShape = 0; // Current key shape (0-3)
+    this.completedLevels = 0; // Number of completed levels
 
     // Play area: 48x48 cells, with 8 cells border on all sides
     this.playAreaStart = 8;
@@ -118,6 +119,15 @@ class LS20Scene extends Phaser.Scene {
         ],
         door: { x: 48, y: 40, requiredShape: 2 }, // Door at (48,40) needs shape 2 (+)
         shapeChanger: { x: 24, y: 24 } // Shape changer at center
+      },
+      {
+        player: { x: 8, y: 8 },
+        walls: [
+          [24, 8, 8, 24], // Vertical wall
+          [16, 32, 24, 8]  // Horizontal wall
+        ],
+        door: { x: 40, y: 8, requiredShape: 1 }, // Door needs shape 1 (T)
+        shapeChanger: { x: 32, y: 32 } // Shape changer
       }
     ];
 
@@ -140,6 +150,8 @@ class LS20Scene extends Phaser.Scene {
     this.movesLeft = this.maxMoves;
     this.lives = 3;
     this.keyShape = 0;
+
+    // Don't reset completedLevels - they carry over between levels
 
     const lvl = this.levels[this.currentLevel];
 
@@ -224,6 +236,7 @@ class LS20Scene extends Phaser.Scene {
     this.drawLives();
     this.drawMoves();
     this.drawKeyIndicator();
+    this.drawLevelIndicator();
     this.drawGrid();
   }
 
@@ -376,6 +389,24 @@ class LS20Scene extends Phaser.Scene {
     }
   }
 
+  drawLevelIndicator() {
+    if (this.levelIndGfx) this.levelIndGfx.destroy();
+    this.levelIndGfx = this.add.graphics();
+
+    // 8 lines of 4x1 cells, separated by 1 cell, 1 cell from bottom WITHIN the grid
+    const totalLevels = 8;
+    const startX = this.offsetX + (12 * this.size); // Centered horizontally (8 indicators × 5 cells = 40 cells total)
+    const startY = this.offsetY + (62 * this.size); // 1 cell from bottom edge, inside grid
+
+    for (let i = 0; i < totalLevels; i++) {
+      const x = startX + (i * 5 * this.size); // 4 cells wide + 1 cell separation
+      const color = i < this.completedLevels ? 0x00ff00 : 0xaaaaaa; // Green if completed, light gray otherwise
+
+      this.levelIndGfx.fillStyle(color, 1);
+      this.levelIndGfx.fillRect(x, startY, 4 * this.size, 1 * this.size);
+    }
+  }
+
   update() {
     if (!this.canMove) return;
 
@@ -416,6 +447,7 @@ class LS20Scene extends Phaser.Scene {
       this.drawPlayer();
       this.drawMoves();
       this.drawKeyIndicator();
+      this.drawLevelIndicator();
       this.drawGrid();
 
       // Check if out of moves
@@ -449,6 +481,7 @@ class LS20Scene extends Phaser.Scene {
         this.drawLives();
         this.drawMoves();
         this.drawKeyIndicator();
+        this.drawLevelIndicator();
         this.drawGrid();
       });
     }
@@ -460,6 +493,7 @@ class LS20Scene extends Phaser.Scene {
 
     this.time.delayedCall(1000, () => {
       this.keyShape = 0; // Reset key shape
+      this.completedLevels = 0; // Reset completed levels
       this.scene.restart();
     });
   }
@@ -500,6 +534,10 @@ class LS20Scene extends Phaser.Scene {
         // Correct key! Win!
         this.canMove = false;
         playTone(this, 800, 0.3);
+
+        // Mark level as completed
+        this.completedLevels++;
+        this.drawLevelIndicator();
 
         this.time.delayedCall(800, () => {
           this.currentLevel++;
