@@ -99,10 +99,14 @@ class LS20Scene extends Phaser.Scene {
     this.maxMoves = 22;
     this.movesLeft = 22;
     this.canMove = true;
+    this.keyShape = 0; // Current key shape (0-3)
 
     // Play area: 48x48 cells, with 8 cells border on all sides
     this.playAreaStart = 8;
     this.playAreaSize = 48;
+
+    // Key shapes: 0=L, 1=T, 2=+, 3=Square
+    this.keyShapes = ['L', 'T', '+', 'Square'];
 
     // Levels definition (positions in grid cells, within 8-56 range)
     // Valid positions: 8, 16, 24, 32, 40, 48 (blocked corners: 48,8 and 8,48)
@@ -111,7 +115,9 @@ class LS20Scene extends Phaser.Scene {
         player: { x: 40, y: 48 },
         walls: [
           [16, 16, 8, 16]
-        ]
+        ],
+        door: { x: 48, y: 40, requiredShape: 2 }, // Door at (48,40) needs shape 2 (+)
+        shapeChanger: { x: 24, y: 24 } // Shape changer at center
       }
     ];
 
@@ -130,9 +136,10 @@ class LS20Scene extends Phaser.Scene {
     if (this.gfx) this.gfx.destroy();
     this.gfx = this.add.graphics();
 
-    // Reset moves for new level
+    // Reset moves and key shape for new level
     this.movesLeft = this.maxMoves;
     this.lives = 3;
+    this.keyShape = 0;
 
     const lvl = this.levels[this.currentLevel];
 
@@ -201,11 +208,22 @@ class LS20Scene extends Phaser.Scene {
       8 * this.size
     );
 
+    // Draw door
+    if (lvl.door) {
+      this.drawDoor(lvl.door);
+    }
+
+    // Draw shape changer
+    if (lvl.shapeChanger) {
+      this.drawShapeChanger(lvl.shapeChanger);
+    }
+
     // Create player
     this.player = { x: lvl.player.x, y: lvl.player.y };
     this.drawPlayer();
     this.drawLives();
     this.drawMoves();
+    this.drawKeyIndicator();
     this.drawGrid();
   }
 
@@ -279,6 +297,85 @@ class LS20Scene extends Phaser.Scene {
     }
   }
 
+  drawDoor(door) {
+    if (this.doorGfx) this.doorGfx.destroy();
+    this.doorGfx = this.add.graphics();
+
+    const px = this.offsetX + (door.x * this.size);
+    const py = this.offsetY + (door.y * this.size);
+
+    // Door background (dark gray)
+    this.doorGfx.fillStyle(0x222222, 1);
+    this.doorGfx.fillRect(px, py, 8 * this.size, 8 * this.size);
+
+    // Draw required key shape on door
+    this.drawKeyShape(this.doorGfx, px, py, door.requiredShape);
+  }
+
+  drawShapeChanger(changer) {
+    if (this.changerGfx) this.changerGfx.destroy();
+    this.changerGfx = this.add.graphics();
+
+    const px = this.offsetX + (changer.x * this.size);
+    const py = this.offsetY + (changer.y * this.size);
+
+    // Shape changer (yellow/gold color)
+    this.changerGfx.fillStyle(0xffcc00, 1);
+    this.changerGfx.fillRect(px, py, 8 * this.size, 8 * this.size);
+  }
+
+  drawKeyIndicator() {
+    if (this.keyGfx) this.keyGfx.destroy();
+    this.keyGfx = this.add.graphics();
+
+    // Position: bottom-left of grid, inside border
+    const px = this.offsetX + (2 * this.size);
+    const py = this.offsetY + (54 * this.size);
+
+    // Background
+    this.keyGfx.fillStyle(0x444444, 1);
+    this.keyGfx.fillRect(px, py, 8 * this.size, 8 * this.size);
+
+    // Draw current key shape
+    this.drawKeyShape(this.keyGfx, px, py, this.keyShape);
+  }
+
+  drawKeyShape(graphics, x, y, shape) {
+    const s = this.size;
+
+    // All shapes are white (main) with blue (accent)
+    graphics.fillStyle(0xffffff, 1);
+
+    switch(shape) {
+      case 0: // L shape
+        graphics.fillRect(x, y, 4 * s, 8 * s); // Vertical part
+        graphics.fillRect(x, y + 6 * s, 8 * s, 2 * s); // Horizontal part
+        graphics.fillStyle(0x3399ff, 1);
+        graphics.fillRect(x + s, y + s, 2 * s, 4 * s); // Blue accent
+        break;
+
+      case 1: // T shape
+        graphics.fillRect(x, y, 8 * s, 3 * s); // Top horizontal
+        graphics.fillRect(x + 3 * s, y, 2 * s, 8 * s); // Vertical stem
+        graphics.fillStyle(0x3399ff, 1);
+        graphics.fillRect(x + 3 * s, y + 4 * s, 2 * s, 3 * s); // Blue accent
+        break;
+
+      case 2: // + (cross) shape
+        graphics.fillRect(x + 3 * s, y, 2 * s, 8 * s); // Vertical
+        graphics.fillRect(x, y + 3 * s, 8 * s, 2 * s); // Horizontal
+        graphics.fillStyle(0x3399ff, 1);
+        graphics.fillRect(x + 3 * s, y + 3 * s, 2 * s, 2 * s); // Blue center
+        break;
+
+      case 3: // Square shape
+        graphics.fillRect(x + s, y + s, 6 * s, 6 * s); // Outer square
+        graphics.fillStyle(0x3399ff, 1);
+        graphics.fillRect(x + 2 * s, y + 2 * s, 4 * s, 4 * s); // Blue inner square
+        break;
+    }
+  }
+
   update() {
     if (!this.canMove) return;
 
@@ -304,8 +401,21 @@ class LS20Scene extends Phaser.Scene {
       this.player.y = newY;
       this.movesLeft--;
       playTone(this, 300, 0.05);
+
+      // Check if stepped on shape changer
+      const lvl = this.levels[this.currentLevel];
+      if (lvl.shapeChanger && this.player.x === lvl.shapeChanger.x && this.player.y === lvl.shapeChanger.y) {
+        this.keyShape = (this.keyShape + 1) % 4; // Cycle through shapes
+        playTone(this, 500, 0.15);
+      }
+
+      // Redraw everything (door and shape changer need to be visible under player)
+      if (lvl.door) this.drawDoor(lvl.door);
+      if (lvl.shapeChanger) this.drawShapeChanger(lvl.shapeChanger);
+
       this.drawPlayer();
       this.drawMoves();
+      this.drawKeyIndicator();
       this.drawGrid();
 
       // Check if out of moves
@@ -326,16 +436,19 @@ class LS20Scene extends Phaser.Scene {
     if (this.lives <= 0) {
       this.gameOver();
     } else {
-      // Reset player position and moves
+      // Reset player position and moves (but keep key shape)
       const lvl = this.levels[this.currentLevel];
       this.player.x = lvl.player.x;
       this.player.y = lvl.player.y;
       this.movesLeft = this.maxMoves;
 
       this.time.delayedCall(500, () => {
+        if (lvl.door) this.drawDoor(lvl.door);
+        if (lvl.shapeChanger) this.drawShapeChanger(lvl.shapeChanger);
         this.drawPlayer();
         this.drawLives();
         this.drawMoves();
+        this.drawKeyIndicator();
         this.drawGrid();
       });
     }
@@ -346,6 +459,7 @@ class LS20Scene extends Phaser.Scene {
     playTone(this, 200, 0.5);
 
     this.time.delayedCall(1000, () => {
+      this.keyShape = 0; // Reset key shape
       this.scene.restart();
     });
   }
@@ -379,25 +493,29 @@ class LS20Scene extends Phaser.Scene {
 
   checkWin() {
     const lvl = this.levels[this.currentLevel];
-    // Check if player position matches any goal position (both in grid cells)
-    if (lvl.goals) {
-      for (let g of lvl.goals) {
-        if (this.player.x === g[0] && this.player.y === g[1]) {
-          this.canMove = false;
-          playTone(this, 600, 0.3);
 
-          this.time.delayedCall(800, () => {
-            this.currentLevel++;
-            if (this.currentLevel < this.levels.length) {
-              this.canMove = true;
-              this.loadLevel();
-            } else {
-              this.scene.start('MenuScene');
-            }
-          });
-          return;
-        }
+    // Check if player reached door with correct key shape
+    if (lvl.door && this.player.x === lvl.door.x && this.player.y === lvl.door.y) {
+      if (this.keyShape === lvl.door.requiredShape) {
+        // Correct key! Win!
+        this.canMove = false;
+        playTone(this, 800, 0.3);
+
+        this.time.delayedCall(800, () => {
+          this.currentLevel++;
+          if (this.currentLevel < this.levels.length) {
+            this.canMove = true;
+            this.keyShape = 0; // Reset key shape for next level
+            this.loadLevel();
+          } else {
+            this.scene.start('MenuScene');
+          }
+        });
+      } else {
+        // Wrong key! Play error sound but don't lose life
+        playTone(this, 150, 0.2);
       }
+      return;
     }
   }
 }
