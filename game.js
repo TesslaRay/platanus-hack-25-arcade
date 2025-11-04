@@ -100,14 +100,18 @@ class LS20Scene extends Phaser.Scene {
     this.movesLeft = 22;
     this.canMove = true;
 
-    // Levels definition
+    // Play area: 48x48 cells, with 8 cells border on all sides
+    this.playAreaStart = 8;
+    this.playAreaSize = 48;
+
+    // Levels definition (positions in grid cells, within 8-56 range)
+    // Valid positions: 8, 16, 24, 32, 40, 48 (blocked corners: 48,8 and 8,48)
     this.levels = [
       {
-        player: { x: 0, y: 18 },
+        player: { x: 40, y: 48 },
         walls: [
-          [3, 4, 10, 14], [10, 12, 7, 7], [10, 10, 4, 8]
-        ],
-        goals: [[7, 4], [10, 10], [13, 16]]
+          [16, 16, 8, 16]
+        ]
       }
     ];
 
@@ -136,76 +140,108 @@ class LS20Scene extends Phaser.Scene {
     this.gfx.fillStyle(0x888888, 1);
     this.gfx.fillRect(this.offsetX, this.offsetY, this.grid * this.size, this.grid * this.size);
 
-    // Draw grid lines
-    this.gfx.lineStyle(1, 0x666666, 0.3);
-    for (let i = 0; i <= this.grid; i++) {
-      this.gfx.lineBetween(
-        this.offsetX + i * this.size, this.offsetY,
-        this.offsetX + i * this.size, this.offsetY + this.grid * this.size
-      );
-      this.gfx.lineBetween(
-        this.offsetX, this.offsetY + i * this.size,
-        this.offsetX + this.grid * this.size, this.offsetY + i * this.size
-      );
-    }
+    // Draw border (8 cells on all sides) in darker color
+    this.gfx.fillStyle(0x333333, 1);
+    // Top border
+    this.gfx.fillRect(this.offsetX, this.offsetY, this.grid * this.size, this.playAreaStart * this.size);
+    // Bottom border
+    this.gfx.fillRect(this.offsetX, this.offsetY + (this.playAreaStart + this.playAreaSize) * this.size, this.grid * this.size, this.playAreaStart * this.size);
+    // Left border
+    this.gfx.fillRect(this.offsetX, this.offsetY + this.playAreaStart * this.size, this.playAreaStart * this.size, this.playAreaSize * this.size);
+    // Right border
+    this.gfx.fillRect(this.offsetX + (this.playAreaStart + this.playAreaSize) * this.size, this.offsetY + this.playAreaStart * this.size, this.playAreaStart * this.size, this.playAreaSize * this.size);
 
-    // Draw walls
-    this.gfx.fillStyle(0x222222, 1);
+    // Draw walls (positions in grid cells) - same color as non-playable area
+    this.gfx.fillStyle(0x333333, 1);
     lvl.walls.forEach(w => {
       this.gfx.fillRect(
-        this.offsetX + w[0] * this.size,
-        this.offsetY + w[1] * this.size,
+        this.offsetX + (w[0] * this.size),
+        this.offsetY + (w[1] * this.size),
         w[2] * this.size,
         w[3] * this.size
       );
     });
 
-    // Draw goals
-    lvl.goals.forEach(g => {
-      this.gfx.fillStyle(0xffffff, 1);
-      this.gfx.fillRect(
-        this.offsetX + g[0] * this.size,
-        this.offsetY + (g[1] + 1) * this.size,
-        this.size,
-        this.size
-      );
-      this.gfx.fillStyle(0x4444ff, 1);
-      this.gfx.fillRect(
-        this.offsetX + g[0] * this.size,
-        this.offsetY + g[1] * this.size,
-        this.size,
-        this.size
-      );
-    });
+    // Draw blocked corners (8x8 cells each)
+    this.gfx.fillStyle(0x333333, 1);
+    // Top-right corner (48, 8)
+    this.gfx.fillRect(
+      this.offsetX + (48 * this.size),
+      this.offsetY + (8 * this.size),
+      8 * this.size,
+      8 * this.size
+    );
+    // Bottom-left corner area
+    // (8, 48)
+    this.gfx.fillRect(
+      this.offsetX + (8 * this.size),
+      this.offsetY + (48 * this.size),
+      8 * this.size,
+      8 * this.size
+    );
+    // (16, 48) - 1 more to the right
+    this.gfx.fillRect(
+      this.offsetX + (16 * this.size),
+      this.offsetY + (48 * this.size),
+      8 * this.size,
+      8 * this.size
+    );
+    // (24, 48) - 2 more to the right
+    this.gfx.fillRect(
+      this.offsetX + (24 * this.size),
+      this.offsetY + (48 * this.size),
+      8 * this.size,
+      8 * this.size
+    );
+    // (8, 40) - 1 up
+    this.gfx.fillRect(
+      this.offsetX + (8 * this.size),
+      this.offsetY + (40 * this.size),
+      8 * this.size,
+      8 * this.size
+    );
 
     // Create player
     this.player = { x: lvl.player.x, y: lvl.player.y };
     this.drawPlayer();
     this.drawLives();
     this.drawMoves();
+    this.drawGrid();
+  }
+
+  drawGrid() {
+    if (this.gridGfx) this.gridGfx.destroy();
+    this.gridGfx = this.add.graphics();
+
+    // Draw grid lines on entire 64x64 grid (on top of everything)
+    this.gridGfx.lineStyle(1, 0x666666, 0.3);
+    for (let i = 0; i <= this.grid; i++) {
+      this.gridGfx.lineBetween(
+        this.offsetX + i * this.size, this.offsetY,
+        this.offsetX + i * this.size, this.offsetY + this.grid * this.size
+      );
+      this.gridGfx.lineBetween(
+        this.offsetX, this.offsetY + i * this.size,
+        this.offsetX + this.grid * this.size, this.offsetY + i * this.size
+      );
+    }
   }
 
   drawPlayer() {
     if (this.playerGfx) this.playerGfx.destroy();
     this.playerGfx = this.add.graphics();
 
-    // Blue block on top
-    this.playerGfx.fillStyle(0x3399ff, 1);
-    this.playerGfx.fillRect(
-      this.offsetX + this.player.x * this.size,
-      this.offsetY + this.player.y * this.size,
-      this.size,
-      this.size
-    );
+    // Player is 8x8 cells: 8 cells wide × (2 cells orange top + 6 cells blue bottom)
+    const px = this.offsetX + (this.player.x * this.size);
+    const py = this.offsetY + (this.player.y * this.size);
 
-    // Orange block on bottom
+    // Orange part (top 2 cells)
     this.playerGfx.fillStyle(0xff9933, 1);
-    this.playerGfx.fillRect(
-      this.offsetX + this.player.x * this.size,
-      this.offsetY + (this.player.y + 1) * this.size,
-      this.size,
-      this.size
-    );
+    this.playerGfx.fillRect(px, py, 8 * this.size, 2 * this.size);
+
+    // Blue part (bottom 6 cells)
+    this.playerGfx.fillStyle(0x3399ff, 1);
+    this.playerGfx.fillRect(px, py + (2 * this.size), 8 * this.size, 6 * this.size);
   }
 
   drawLives() {
@@ -248,10 +284,11 @@ class LS20Scene extends Phaser.Scene {
 
     let dx = 0, dy = 0;
 
-    if (Phaser.Input.Keyboard.JustDown(this.cursors.left) || Phaser.Input.Keyboard.JustDown(this.keys.A)) dx = -1;
-    if (Phaser.Input.Keyboard.JustDown(this.cursors.right) || Phaser.Input.Keyboard.JustDown(this.keys.D)) dx = 1;
-    if (Phaser.Input.Keyboard.JustDown(this.cursors.up) || Phaser.Input.Keyboard.JustDown(this.keys.W)) dy = -1;
-    if (Phaser.Input.Keyboard.JustDown(this.cursors.down) || Phaser.Input.Keyboard.JustDown(this.keys.S)) dy = 1;
+    // Move 8 cells per keypress
+    if (Phaser.Input.Keyboard.JustDown(this.cursors.left) || Phaser.Input.Keyboard.JustDown(this.keys.A)) dx = -8;
+    if (Phaser.Input.Keyboard.JustDown(this.cursors.right) || Phaser.Input.Keyboard.JustDown(this.keys.D)) dx = 8;
+    if (Phaser.Input.Keyboard.JustDown(this.cursors.up) || Phaser.Input.Keyboard.JustDown(this.keys.W)) dy = -8;
+    if (Phaser.Input.Keyboard.JustDown(this.cursors.down) || Phaser.Input.Keyboard.JustDown(this.keys.S)) dy = 8;
 
     if (dx !== 0 || dy !== 0) {
       this.movePlayer(dx, dy);
@@ -269,6 +306,7 @@ class LS20Scene extends Phaser.Scene {
       playTone(this, 300, 0.05);
       this.drawPlayer();
       this.drawMoves();
+      this.drawGrid();
 
       // Check if out of moves
       if (this.movesLeft <= 0) {
@@ -298,6 +336,7 @@ class LS20Scene extends Phaser.Scene {
         this.drawPlayer();
         this.drawLives();
         this.drawMoves();
+        this.drawGrid();
       });
     }
   }
@@ -312,33 +351,52 @@ class LS20Scene extends Phaser.Scene {
   }
 
   canMoveTo(x, y) {
-    if (x < 0 || x >= this.grid || y < 0 || y >= this.grid - 1) return false;
+    // Check play area bounds (48x48 cells, starting at cell 8)
+    // Player is 8x8 cells
+    const maxPos = this.playAreaStart + this.playAreaSize;
+    if (x < this.playAreaStart || x + 8 > maxPos || y < this.playAreaStart || y + 8 > maxPos) return false;
+
+    // Block top-right corner (48, 8)
+    if (x === 48 && y === 8) return false;
+
+    // Block bottom-left corner area
+    if (x === 8 && y === 48) return false;
+    if (x === 16 && y === 48) return false;
+    if (x === 24 && y === 48) return false;
+    if (x === 8 && y === 40) return false;
 
     const lvl = this.levels[this.currentLevel];
+
+    // Check wall collisions (all in cells)
     for (let w of lvl.walls) {
-      if (x >= w[0] && x < w[0] + w[2] && y >= w[1] && y < w[1] + w[3]) return false;
-      if (x >= w[0] && x < w[0] + w[2] && y + 1 >= w[1] && y + 1 < w[1] + w[3]) return false;
+      // AABB collision detection (player is 8x8 cells)
+      if (x < w[0] + w[2] && x + 8 > w[0] && y < w[1] + w[3] && y + 8 > w[1]) {
+        return false;
+      }
     }
     return true;
   }
 
   checkWin() {
     const lvl = this.levels[this.currentLevel];
-    for (let g of lvl.goals) {
-      if (this.player.x === g[0] && this.player.y === g[1]) {
-        this.canMove = false;
-        playTone(this, 600, 0.3);
+    // Check if player position matches any goal position (both in grid cells)
+    if (lvl.goals) {
+      for (let g of lvl.goals) {
+        if (this.player.x === g[0] && this.player.y === g[1]) {
+          this.canMove = false;
+          playTone(this, 600, 0.3);
 
-        this.time.delayedCall(800, () => {
-          this.currentLevel++;
-          if (this.currentLevel < this.levels.length) {
-            this.canMove = true;
-            this.loadLevel();
-          } else {
-            this.scene.start('MenuScene');
-          }
-        });
-        return;
+          this.time.delayedCall(800, () => {
+            this.currentLevel++;
+            if (this.currentLevel < this.levels.length) {
+              this.canMove = true;
+              this.loadLevel();
+            } else {
+              this.scene.start('MenuScene');
+            }
+          });
+          return;
+        }
       }
     }
   }
